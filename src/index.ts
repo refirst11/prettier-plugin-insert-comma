@@ -2,6 +2,10 @@ import typescriptParser from 'prettier/parser-typescript';
 import babelParser from 'prettier/parser-babel';
 import type { Parser, ParserOptions } from 'prettier';
 
+function isCheckMode(): boolean {
+  return process.argv.some((arg: string) => arg === '--check' || arg === '-c');
+}
+
 function fixMissingCommas(code: string): string {
   let depth = 0;
   let inString = false;
@@ -71,8 +75,23 @@ function fixMissingCommas(code: string): string {
         const prev = out[lastCharIdx];
 
         let nextStartIdx = i + 1;
-        while (nextStartIdx < code.length && /\s/.test(code[nextStartIdx])) {
-          nextStartIdx++;
+        while (nextStartIdx < code.length) {
+          while (nextStartIdx < code.length && /\s/.test(code[nextStartIdx])) {
+            nextStartIdx++;
+          }
+
+          if (code[nextStartIdx] === '/' && code[nextStartIdx + 1] === '/') {
+            const lineEnd = code.indexOf('\n', nextStartIdx);
+            nextStartIdx = lineEnd === -1 ? code.length : lineEnd + 1;
+            continue;
+          }
+
+          if (code[nextStartIdx] === '/' && code[nextStartIdx + 1] === '*') {
+            const endIdx = code.indexOf('*/', nextStartIdx + 2);
+            nextStartIdx = endIdx === -1 ? code.length : endIdx + 2;
+            continue;
+          }
+          break;
         }
 
         const nextSlice = code.slice(nextStartIdx);
@@ -137,8 +156,9 @@ function wrapParser(parser: Parser): Parser {
     ...parser,
 
     async preprocess(text: string, options: ParserOptions): Promise<string> {
-      let next: string = text;
+      if (isCheckMode()) return text;
 
+      let next: string = text;
       if (parser.preprocess) {
         const result = await parser.preprocess(text, options);
         next = result;
