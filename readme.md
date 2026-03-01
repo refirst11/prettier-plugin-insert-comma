@@ -74,4 +74,4 @@ For JSON files, you need to specify the parser explicitly with `overrides`:
 | ------------ | --------------- |
 | `typescript` | TypeScript, TSX |
 | `babel`      | JavaScript, JSX |
-| `json5`      | JSON5           |
+| `json`       | JSON            |
