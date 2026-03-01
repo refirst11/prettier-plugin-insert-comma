@@ -8,6 +8,7 @@ function fixMissingCommas(code: string): string {
   let quote: string | null = null;
   let isEscaped = false;
   let out = '';
+  let lastWasComment = false;
 
   for (let i = 0; i < code.length; i++) {
     const ch = code[i];
@@ -31,6 +32,7 @@ function fixMissingCommas(code: string): string {
       const comment = code.slice(i, lineEnd === -1 ? code.length : lineEnd);
       out += comment;
       i += comment.length - 1;
+      lastWasComment = true;
       continue;
     }
     if (ch === '/' && code[i + 1] === '*') {
@@ -39,6 +41,7 @@ function fixMissingCommas(code: string): string {
         const comment = code.slice(i, endIdx + 2);
         out += comment;
         i += comment.length - 1;
+        lastWasComment = true;
         continue;
       }
     }
@@ -87,7 +90,7 @@ function fixMissingCommas(code: string): string {
           prev === ';' ||
           prev === undefined;
 
-        if (isNextKeyOrClosing && !isPrevSeparator) {
+        if (isNextKeyOrClosing && !isPrevSeparator && !lastWasComment) {
           out += ',';
         }
       }
@@ -113,7 +116,7 @@ function fixMissingCommas(code: string): string {
             prev === ';' ||
             prev === undefined;
 
-          if (!isPrevSeparator) {
+          if (!isPrevSeparator && !lastWasComment) {
             out += ',';
           }
         }
@@ -121,6 +124,9 @@ function fixMissingCommas(code: string): string {
     }
 
     out += ch;
+    if (!/\s/.test(ch)) {
+      lastWasComment = false;
+    }
   }
 
   return out;
