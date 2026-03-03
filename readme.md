@@ -1,6 +1,6 @@
 # prettier-plugin-insert-comma
 
-A [Prettier](https://prettier.io/) plugin that automatically inserts missing commas between object properties before formatting.
+A [Prettier](https://prettier.io/) plugin that automatically inserts missing commas in multi-line object properties before formatting.
 
 Prettier cannot format code with syntax errors like missing commas in objects. This plugin runs as a preprocessor to insert commas between properties, allowing Prettier to format your code successfully.
 
