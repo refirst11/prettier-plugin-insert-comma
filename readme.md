@@ -4,6 +4,10 @@ A [Prettier](https://prettier.io/) plugin that automatically inserts missing com
 
 Prettier cannot format code with syntax errors like missing commas in objects. This plugin runs as a preprocessor to insert commas between properties, allowing Prettier to format your code successfully.
 
+## Requirements
+
+- Prettier 3.7.0 or higher
+
 ## Example
 
 **Before** — Prettier would throw a parse error:
@@ -68,10 +72,10 @@ For JSON files, you need to specify the parser explicitly with `overrides`:
 }
 ```
 
-## Supported Parsers
+## Supported Languages
 
-| Parser       | Languages       |
-| ------------ | --------------- |
-| `typescript` | TypeScript, TSX |
-| `babel`      | JavaScript, JSX |
-| `json`       | JSON            |
+| Language        |
+| --------------- |
+| TypeScript, TSX |
+| JavaScript, JSX |
+| JSON            |
