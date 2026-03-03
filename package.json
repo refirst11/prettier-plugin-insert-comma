@@ -1,8 +1,8 @@
 {
   "type": "module",
   "name": "prettier-plugin-insert-comma",
-  "version": "1.1.2",
-  "description": "A Prettier plugin for inserting missing commas in multi-line object.",
+  "version": "1.1.3",
+  "description": "A Prettier plugin for inserting missing commas in multi-line objects.",
   "funding": "https://github.com/sponsors/refirst11",
   "author": "Refirst11",
   "license": "MIT",
