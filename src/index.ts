@@ -2,10 +2,6 @@ import typescriptParser from 'prettier/parser-typescript';
 import babelParser from 'prettier/parser-babel';
 import type { Parser, ParserOptions } from 'prettier';
 
-function isCheckMode(): boolean {
-  return process.argv.some((arg: string) => arg === '--check' || arg === '-c');
-}
-
 function fixMissingCommas(code: string): string {
   let depth = 0;
   let inString = false;
@@ -64,81 +60,51 @@ function fixMissingCommas(code: string): string {
     if (ch === '}' || ch === ']') depth--;
 
     // 5. Detect missing comma
-    if (depth > 0) {
-      // new line case
-      if (ch === '\n') {
-        let lastCharIdx = out.length - 1;
-        while (lastCharIdx >= 0 && /\s/.test(out[lastCharIdx])) {
-          lastCharIdx--;
-        }
-
-        const prev = out[lastCharIdx];
-
-        let nextStartIdx = i + 1;
-        while (nextStartIdx < code.length) {
-          while (nextStartIdx < code.length && /\s/.test(code[nextStartIdx])) {
-            nextStartIdx++;
-          }
-
-          if (code[nextStartIdx] === '/' && code[nextStartIdx + 1] === '/') {
-            const lineEnd = code.indexOf('\n', nextStartIdx);
-            nextStartIdx = lineEnd === -1 ? code.length : lineEnd + 1;
-            continue;
-          }
-
-          if (code[nextStartIdx] === '/' && code[nextStartIdx + 1] === '*') {
-            const endIdx = code.indexOf('*/', nextStartIdx + 2);
-            nextStartIdx = endIdx === -1 ? code.length : endIdx + 2;
-            continue;
-          }
-          break;
-        }
-
-        const nextSlice = code.slice(nextStartIdx);
-
-        const isNextKeyOrClosing =
-          nextSlice[0] === '}' ||
-          nextSlice[0] === ']' ||
-          /^[^\n:]+:/.test(nextSlice);
-
-        const isPrevSeparator =
-          prev === ',' ||
-          prev === '{' ||
-          prev === '[' ||
-          prev === ':' ||
-          prev === ';' ||
-          prev === undefined;
-
-        if (isNextKeyOrClosing && !isPrevSeparator && !lastWasComment) {
-          out += ',';
-        }
+    if (depth > 0 && ch === '\n') {
+      let lastCharIdx = out.length - 1;
+      while (lastCharIdx >= 0 && /\s/.test(out[lastCharIdx])) {
+        lastCharIdx--;
       }
 
-      // one line case
-      if (ch === ' ') {
-        const nextSlice = code.slice(i + 1);
+      const prev = out[lastCharIdx];
 
-        if (/^[^\n:]+:/.test(nextSlice)) {
-          let lastCharIdx = out.length - 1;
-
-          while (lastCharIdx >= 0 && /\s/.test(out[lastCharIdx])) {
-            lastCharIdx--;
-          }
-
-          const prev = out[lastCharIdx];
-
-          const isPrevSeparator =
-            prev === ',' ||
-            prev === '{' ||
-            prev === '[' ||
-            prev === ':' ||
-            prev === ';' ||
-            prev === undefined;
-
-          if (!isPrevSeparator && !lastWasComment) {
-            out += ',';
-          }
+      let nextStartIdx = i + 1;
+      while (nextStartIdx < code.length) {
+        while (nextStartIdx < code.length && /\s/.test(code[nextStartIdx])) {
+          nextStartIdx++;
         }
+
+        if (code[nextStartIdx] === '/' && code[nextStartIdx + 1] === '/') {
+          const lineEnd = code.indexOf('\n', nextStartIdx);
+          nextStartIdx = lineEnd === -1 ? code.length : lineEnd + 1;
+          continue;
+        }
+
+        if (code[nextStartIdx] === '/' && code[nextStartIdx + 1] === '*') {
+          const endIdx = code.indexOf('*/', nextStartIdx + 2);
+          nextStartIdx = endIdx === -1 ? code.length : endIdx + 2;
+          continue;
+        }
+        break;
+      }
+
+      const nextSlice = code.slice(nextStartIdx);
+
+      const isNextKeyOrClosing =
+        nextSlice[0] === '}' ||
+        nextSlice[0] === ']' ||
+        /^[^\n:]+:/.test(nextSlice);
+
+      const isPrevSeparator =
+        prev === ',' ||
+        prev === '{' ||
+        prev === '[' ||
+        prev === ':' ||
+        prev === ';' ||
+        prev === undefined;
+
+      if (isNextKeyOrClosing && !isPrevSeparator && !lastWasComment) {
+        out += ',';
       }
     }
 
@@ -156,9 +122,8 @@ function wrapParser(parser: Parser): Parser {
     ...parser,
 
     async preprocess(text: string, options: ParserOptions): Promise<string> {
-      if (isCheckMode()) return text;
-
       let next: string = text;
+
       if (parser.preprocess) {
         const result = await parser.preprocess(text, options);
         next = result;
