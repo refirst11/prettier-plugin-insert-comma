@@ -1,7 +1,7 @@
 {
   "type": "module",
   "name": "prettier-plugin-insert-comma",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A Prettier plugin for inserting missing commas in objects.",
   "funding": "https://github.com/sponsors/refirst11",
   "author": "Refirst11",
@@ -36,7 +36,6 @@
     "prettier": "^3.0"
   },
   "devDependencies": {
-    "@types/node": "^25.3.3",
     "typescript": "^5.9.3"
   },
   "publishConfig": {
