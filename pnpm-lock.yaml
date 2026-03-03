@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       prettier:
-        specifier: ^3.0
+        specifier: ^3.7.0
         version: 3.8.1
     devDependencies:
       typescript:
