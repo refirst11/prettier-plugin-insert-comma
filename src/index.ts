@@ -1,5 +1,5 @@
-import typescriptParser from 'prettier/parser-typescript';
-import babelParser from 'prettier/parser-babel';
+import typescriptParser from 'prettier/plugins/typescript';
+import babelParser from 'prettier/plugins/babel';
 import type { Parser, ParserOptions } from 'prettier';
 
 function fixMissingCommas(code: string): string {
