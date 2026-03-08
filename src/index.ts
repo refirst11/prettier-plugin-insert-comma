@@ -2,7 +2,7 @@ import typescriptParser from 'prettier/plugins/typescript';
 import babelParser from 'prettier/plugins/babel';
 import type { Parser, ParserOptions } from 'prettier';
 
-function fixMissingCommas(code: string): string {
+function fixMissingCommas(code: string, skipTrailing = false): string {
   let depth = 0;
   let inString = false;
   let quote: string | null = null;
@@ -99,12 +99,16 @@ function fixMissingCommas(code: string): string {
         prev === ',' ||
         prev === '{' ||
         prev === '[' ||
+        prev === '(' ||
         prev === ':' ||
         prev === ';' ||
         prev === undefined;
 
       if (isNextKeyOrClosing && !isPrevSeparator && !lastWasComment) {
-        out += ',';
+        const isTrailing = nextSlice[0] === '}' || nextSlice[0] === ']';
+        if (!skipTrailing || !isTrailing) {
+          out += ',';
+        }
       }
     }
 
@@ -118,10 +122,12 @@ function fixMissingCommas(code: string): string {
 }
 
 function wrapParser(parser: Parser): Parser {
+  const isRunningCLI = process.argv[1]?.includes('prettier');
   return {
     ...parser,
 
     async preprocess(text: string, options: ParserOptions): Promise<string> {
+      if (isRunningCLI) return text;
       let next: string = text;
 
       if (parser.preprocess) {
@@ -129,7 +135,7 @@ function wrapParser(parser: Parser): Parser {
         next = result;
       }
 
-      return fixMissingCommas(next);
+      return fixMissingCommas(next, options.trailingComma === 'none');
     },
   };
 }
