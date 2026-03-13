@@ -102,6 +102,9 @@ function fixMissingCommas(code: string, skipTrailing = false): string {
         prev === '(' ||
         prev === ':' ||
         prev === ';' ||
+        prev === '>' || // Do not insert immediately after a JSX tag
+        prev === '=' || // Do not insert immediately after an assignment operator
+        prev === '?' || // Do not insert immediately after a ternary operator
         prev === undefined;
 
       if (isNextKeyOrClosing && !isPrevSeparator && !lastWasComment) {
@@ -122,12 +125,10 @@ function fixMissingCommas(code: string, skipTrailing = false): string {
 }
 
 function wrapParser(parser: Parser): Parser {
-  const isRunningCLI = process.argv[1]?.includes('prettier');
   return {
     ...parser,
 
     async preprocess(text: string, options: ParserOptions): Promise<string> {
-      if (isRunningCLI) return text;
       let next: string = text;
 
       if (parser.preprocess) {
