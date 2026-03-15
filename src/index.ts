@@ -3,17 +3,62 @@ import babelParser from 'prettier/plugins/babel';
 import type { Parser, ParserOptions } from 'prettier';
 
 function fixMissingCommas(code: string, skipTrailing = false): string {
-  let depth = 0;
   let inString = false;
   let quote: string | null = null;
   let isEscaped = false;
   let out = '';
   let lastWasComment = false;
 
+  // Template literal tracking:
+  // We completely skip processing any code inside template literals
+  // to keep the code simpler and more performant.
+  let inTemplateLiteral = false;
+
+  const recentTokens: string[] = [];
+  let currentWord = '';
+  const blockStack: ('object' | 'block')[] = [];
+
   for (let i = 0; i < code.length; i++) {
     const ch = code[i];
 
-    // 1. Handle Strings
+    // Token tracking for block vs object context
+    if (!inString && !inTemplateLiteral && !lastWasComment) {
+      if (/[a-zA-Z0-9_$]/.test(ch)) {
+        currentWord += ch;
+      } else {
+        if (currentWord) {
+          recentTokens.push(currentWord);
+          if (recentTokens.length > 5) recentTokens.shift();
+          currentWord = '';
+        }
+        if (!/\s/.test(ch)) {
+          if (ch === '/' && (code[i + 1] === '/' || code[i + 1] === '*')) {
+            // ignore comment delimiters
+          } else if (ch === '=' && code[i + 1] === '>') {
+            recentTokens.push('=>');
+            if (recentTokens.length > 5) recentTokens.shift();
+          } else {
+            recentTokens.push(ch);
+            if (recentTokens.length > 5) recentTokens.shift();
+          }
+        }
+      }
+    }
+
+    // 1a. Handle Template Literals (skip entirely)
+    if (inTemplateLiteral) {
+      out += ch;
+      if (isEscaped) {
+        isEscaped = false;
+      } else if (ch === '\\') {
+        isEscaped = true;
+      } else if (ch === '`') {
+        inTemplateLiteral = false;
+      }
+      continue;
+    }
+
+    // 1b. Handle regular Strings (' and ")
     if (inString) {
       out += ch;
       if (isEscaped) {
@@ -46,8 +91,16 @@ function fixMissingCommas(code: string, skipTrailing = false): string {
       }
     }
 
-    // 3. String Start
-    if (ch === '"' || ch === "'" || ch === '`') {
+    // 3a. Template Literal Start
+    if (ch === '`') {
+      inTemplateLiteral = true;
+      isEscaped = false;
+      out += ch;
+      continue;
+    }
+
+    // 3b. Regular String Start
+    if (ch === '"' || ch === "'") {
       inString = true;
       quote = ch;
       isEscaped = false;
@@ -55,12 +108,58 @@ function fixMissingCommas(code: string, skipTrailing = false): string {
       continue;
     }
 
-    // 4. Nesting depth
-    if (ch === '{' || ch === '[') depth++;
-    if (ch === '}' || ch === ']') depth--;
+    // 4. Nesting depth (also handles template expression braces)
+    if (ch === '{' || ch === '[') {
+      let type: 'object' | 'block' = 'object';
+      if (ch === '{') {
+        if (recentTokens.length > 1) {
+          const prev = recentTokens[recentTokens.length - 2];
+          if (
+            prev === ')' ||
+            prev === 'try' ||
+            prev === 'catch' ||
+            prev === 'finally' ||
+            prev === 'else' ||
+            prev === 'do' ||
+            prev === '>' ||
+            prev === 'class' ||
+            prev === 'interface' ||
+            prev === 'type' ||
+            prev === 'namespace' ||
+            prev === 'enum' ||
+            prev === 'get' ||
+            prev === 'set' ||
+            prev === 'module' ||
+            prev === 'switch'
+          ) {
+            type = 'block';
+          } else if (recentTokens.length > 2) {
+            const prev2 = recentTokens[recentTokens.length - 3];
+            if (
+              prev2 === 'function' ||
+              prev2 === 'class' ||
+              prev2 === 'interface' ||
+              prev2 === 'extends' ||
+              prev2 === 'implements' ||
+              prev2 === 'type'
+            ) {
+              type = 'block';
+            }
+          }
+        } else {
+          type = 'block';
+        }
+      }
+      blockStack.push(type);
+    }
+    if (ch === '}' || ch === ']') {
+      blockStack.pop();
+    }
 
     // 5. Detect missing comma
-    if (depth > 0 && ch === '\n') {
+    const isObjectContext =
+      blockStack.length > 0 && blockStack[blockStack.length - 1] === 'object';
+    if (isObjectContext && ch === '\n') {
       let lastCharIdx = out.length - 1;
       while (lastCharIdx >= 0 && /\s/.test(out[lastCharIdx])) {
         lastCharIdx--;
@@ -93,7 +192,9 @@ function fixMissingCommas(code: string, skipTrailing = false): string {
       const isNextKeyOrClosing =
         nextSlice[0] === '}' ||
         nextSlice[0] === ']' ||
-        /^[^\n:]+:/.test(nextSlice);
+        /^(?:[a-zA-Z_$][a-zA-Z0-9_$]*|'[^']*'|"[^"]*"|\[[^\]\n]+\])\s*:/.test(
+          nextSlice,
+        );
 
       const isPrevSeparator =
         prev === ',' ||
