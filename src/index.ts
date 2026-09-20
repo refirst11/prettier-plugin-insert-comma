@@ -1,243 +1,99 @@
 import typescriptParser from 'prettier/plugins/typescript';
 import babelParser from 'prettier/plugins/babel';
-import type { Parser, ParserOptions } from 'prettier';
+import type { Parser } from 'prettier';
 
-function fixMissingCommas(code: string, skipTrailing = false): string {
-  let inString = false;
-  let quote: string | null = null;
-  let isEscaped = false;
-  let out = '';
-  let lastWasComment = false;
+// Bound the work for malformed or unusually large inputs: each repair requires
+// another parse. If recovery cannot finish, return the original source intact.
+const MAX_REPAIRS = 100;
 
-  // Template literal tracking:
-  // We completely skip processing any code inside template literals
-  // to keep the code simpler and more performant.
-  let inTemplateLiteral = false;
-
-  const recentTokens: string[] = [];
-  let currentWord = '';
-  const blockStack: ('object' | 'block')[] = [];
-
-  for (let i = 0; i < code.length; i++) {
-    const ch = code[i];
-
-    // Token tracking for block vs object context
-    if (!inString && !inTemplateLiteral && !lastWasComment) {
-      if (/[a-zA-Z0-9_$]/.test(ch)) {
-        currentWord += ch;
-      } else {
-        if (currentWord) {
-          recentTokens.push(currentWord);
-          if (recentTokens.length > 5) recentTokens.shift();
-          currentWord = '';
-        }
-        if (!/\s/.test(ch)) {
-          if (ch === '/' && (code[i + 1] === '/' || code[i + 1] === '*')) {
-            // ignore comment delimiters
-          } else if (ch === '=' && code[i + 1] === '>') {
-            recentTokens.push('=>');
-            if (recentTokens.length > 5) recentTokens.shift();
-          } else {
-            recentTokens.push(ch);
-            if (recentTokens.length > 5) recentTokens.shift();
-          }
-        }
-      }
-    }
-
-    // 1a. Handle Template Literals (skip entirely)
-    if (inTemplateLiteral) {
-      out += ch;
-      if (isEscaped) {
-        isEscaped = false;
-      } else if (ch === '\\') {
-        isEscaped = true;
-      } else if (ch === '`') {
-        inTemplateLiteral = false;
-      }
-      continue;
-    }
-
-    // 1b. Handle regular Strings (' and ")
-    if (inString) {
-      out += ch;
-      if (isEscaped) {
-        isEscaped = false;
-      } else if (ch === '\\') {
-        isEscaped = true;
-      } else if (ch === quote) {
-        inString = false;
-      }
-      continue;
-    }
-
-    // 2. Handle Comments
-    if (ch === '/' && code[i + 1] === '/') {
-      const lineEnd = code.indexOf('\n', i);
-      const comment = code.slice(i, lineEnd === -1 ? code.length : lineEnd);
-      out += comment;
-      i += comment.length - 1;
-      lastWasComment = true;
-      continue;
-    }
-    if (ch === '/' && code[i + 1] === '*') {
-      const endIdx = code.indexOf('*/', i + 2);
-      if (endIdx !== -1) {
-        const comment = code.slice(i, endIdx + 2);
-        out += comment;
-        i += comment.length - 1;
-        lastWasComment = true;
-        continue;
-      }
-    }
-
-    // 3a. Template Literal Start
-    if (ch === '`') {
-      inTemplateLiteral = true;
-      isEscaped = false;
-      out += ch;
-      continue;
-    }
-
-    // 3b. Regular String Start
-    if (ch === '"' || ch === "'") {
-      inString = true;
-      quote = ch;
-      isEscaped = false;
-      out += ch;
-      continue;
-    }
-
-    // 4. Nesting depth (also handles template expression braces)
-    if (ch === '{' || ch === '[') {
-      let type: 'object' | 'block' = 'object';
-      if (ch === '{') {
-        if (recentTokens.length > 1) {
-          const prev = recentTokens[recentTokens.length - 2];
-          if (
-            prev === ')' ||
-            prev === 'try' ||
-            prev === 'catch' ||
-            prev === 'finally' ||
-            prev === 'else' ||
-            prev === 'do' ||
-            prev === '>' ||
-            prev === 'class' ||
-            prev === 'interface' ||
-            prev === 'type' ||
-            prev === 'namespace' ||
-            prev === 'enum' ||
-            prev === 'get' ||
-            prev === 'set' ||
-            prev === 'module' ||
-            prev === 'switch'
-          ) {
-            type = 'block';
-          } else if (recentTokens.length > 2) {
-            const prev2 = recentTokens[recentTokens.length - 3];
-            if (
-              prev2 === 'function' ||
-              prev2 === 'class' ||
-              prev2 === 'interface' ||
-              prev2 === 'extends' ||
-              prev2 === 'implements' ||
-              prev2 === 'type'
-            ) {
-              type = 'block';
-            }
-          }
-        } else {
-          type = 'block';
-        }
-      }
-      blockStack.push(type);
-    }
-    if (ch === '}' || ch === ']') {
-      blockStack.pop();
-    }
-
-    // 5. Detect missing comma
-    const isObjectContext =
-      blockStack.length > 0 && blockStack[blockStack.length - 1] === 'object';
-    if (isObjectContext && ch === '\n') {
-      let lastCharIdx = out.length - 1;
-      while (lastCharIdx >= 0 && /\s/.test(out[lastCharIdx])) {
-        lastCharIdx--;
-      }
-
-      const prev = out[lastCharIdx];
-
-      let nextStartIdx = i + 1;
-      while (nextStartIdx < code.length) {
-        while (nextStartIdx < code.length && /\s/.test(code[nextStartIdx])) {
-          nextStartIdx++;
-        }
-
-        if (code[nextStartIdx] === '/' && code[nextStartIdx + 1] === '/') {
-          const lineEnd = code.indexOf('\n', nextStartIdx);
-          nextStartIdx = lineEnd === -1 ? code.length : lineEnd + 1;
-          continue;
-        }
-
-        if (code[nextStartIdx] === '/' && code[nextStartIdx + 1] === '*') {
-          const endIdx = code.indexOf('*/', nextStartIdx + 2);
-          nextStartIdx = endIdx === -1 ? code.length : endIdx + 2;
-          continue;
-        }
-        break;
-      }
-
-      const nextSlice = code.slice(nextStartIdx);
-
-      const isNextKeyOrClosing =
-        nextSlice[0] === '}' ||
-        nextSlice[0] === ']' ||
-        /^(?:[a-zA-Z_$][a-zA-Z0-9_$]*|'[^']*'|"[^"]*"|\[[^\]\n]+\])\s*:/.test(
-          nextSlice,
-        );
-
-      const isPrevSeparator =
-        prev === ',' ||
-        prev === '{' ||
-        prev === '[' ||
-        prev === '(' ||
-        prev === ':' ||
-        prev === ';' ||
-        prev === '>' || // Do not insert immediately after a JSX tag
-        prev === '=' || // Do not insert immediately after an assignment operator
-        prev === '?' || // Do not insert immediately after a ternary operator
-        prev === undefined;
-
-      if (isNextKeyOrClosing && !isPrevSeparator && !lastWasComment) {
-        const isTrailing = nextSlice[0] === '}' || nextSlice[0] === ']';
-        if (!skipTrailing || !isTrailing) {
-          out += ',';
-        }
-      }
-    }
-
-    out += ch;
-    if (!/\s/.test(ch)) {
-      lastWasComment = false;
-    }
+function missingCommaOffset(error: unknown, text: string): number | undefined {
+  if (!(error instanceof Error)) return;
+  if (
+    !/^',' expected\./.test(error.message) &&
+    !/^Unexpected token, expected ","/.test(error.message)
+  ) {
+    return;
   }
 
-  return out;
+  // Prettier's parser errors expose one-based line and column locations.
+  const { loc } = error as Error & {
+    loc?: { start?: { line?: number; column?: number } };
+  };
+  const line = loc?.start?.line;
+  const column = loc?.start?.column;
+  if (
+    line === undefined ||
+    column === undefined ||
+    !Number.isInteger(line) ||
+    !Number.isInteger(column) ||
+    line < 1 ||
+    column < 1
+  ) {
+    return;
+  }
+
+  let offset = 0;
+  for (let currentLine = 1; currentLine < line; currentLine++) {
+    const end = /\r\n|[\n\r\u2028\u2029]/g;
+    end.lastIndex = offset;
+    const match = end.exec(text);
+    if (!match) return;
+    offset = match.index + match[0].length;
+  }
+  const lineEnd = text.slice(offset).search(/[\n\r\u2028\u2029]/);
+  if (lineEnd !== -1 && column - 1 > lineEnd) return;
+  offset += column - 1;
+  if (offset >= text.length) return;
+  return offset;
 }
 
 function wrapParser(parser: Parser): Parser {
   return {
     ...parser,
 
-    async preprocess(text: string, options: ParserOptions): Promise<string> {
-      let next: string = text;
+    async preprocess(text, options) {
+      const original = parser.preprocess
+        ? await parser.preprocess(text, options)
+        : text;
+      let repaired = original;
+      let previousOffset = -1;
+      let minimumErrorOffset = -1;
 
-      if (parser.preprocess) {
-        const result = await parser.preprocess(text, options);
-        next = result;
+      for (let repairs = 0; repairs <= MAX_REPAIRS; repairs++) {
+        try {
+          await parser.parse(repaired, options);
+          // Return the repaired source through preprocess so Prettier's source
+          // locations and comment attachment refer to the same text as the AST.
+          return repaired;
+        } catch (error) {
+          if (repairs === MAX_REPAIRS) return original;
+          const errorOffset = missingCommaOffset(error, repaired);
+          if (errorOffset === undefined || errorOffset <= minimumErrorOffset) {
+            return original;
+          }
+          let offset = errorOffset;
+          // A computed key can be parsed as indexing on the preceding value;
+          // a generator's '*' can be parsed as multiplication. In these cases
+          // the diagnostic lands on ':' or '{', after the missing separator.
+          const lineStart = repaired.lastIndexOf('\n', errorOffset - 1) + 1;
+          const prefix = repaired.slice(lineStart, errorOffset);
+          if (
+            (repaired[errorOffset] === ':' && /^\s*\[/.test(prefix)) ||
+            (repaired[errorOffset] === '{' && /^\s*\*/.test(prefix))
+          ) {
+            offset = lineStart + prefix.search(/\S/);
+          }
+          if (offset <= previousOffset) return original;
+          // Insert at the next token, after any comments. Only the language
+          // parser decides token boundaries (including JSX, regex and templates).
+          repaired = `${repaired.slice(0, offset)},${repaired.slice(offset)}`;
+          previousOffset = offset;
+          // Require progress past the original diagnostic, not just past an
+          // inserted character. Never accumulate ineffective speculative edits.
+          minimumErrorOffset = errorOffset + 1;
+        }
       }
-
-      return fixMissingCommas(next, options.trailingComma === 'none');
+      return original;
     },
   };
 }
