@@ -4,6 +4,17 @@ A [Prettier](https://prettier.io/) plugin that automatically inserts missing com
 
 Prettier cannot format code with syntax errors like missing commas in objects. This plugin runs as a preprocessor to insert commas between properties, allowing Prettier to format your code successfully.
 
+The plugin first checks the original source with Prettier's language parser. If
+the parser reports a missing comma, it inserts a separator and checks again.
+This preserves literal contents, including regular expressions, JSX text, and
+nested template strings. Comments, shorthand properties, methods, numeric and
+Unicode keys are supported. Trailing commas are left to Prettier's settings.
+
+Recovery requires another parse for each missing comma and is limited to 100
+insertions per file. If recovery fails or reaches that limit without producing
+valid syntax, the original source is passed back to Prettier for its normal error
+reporting. Other syntax errors are not repaired.
+
 ## Requirements
 
 - Prettier 3.7.0 or higher
